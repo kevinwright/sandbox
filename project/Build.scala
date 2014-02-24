@@ -16,8 +16,19 @@ object TopLevelBuild extends Build {
   lazy val buildSettings = Seq(
     organization := "net.thecoda.sandbox",
     scalaVersion := "2.11.0-M8",
-    scalacOptions := Seq("-feature", "-deprecation", "-unchecked", "-Xlint", "-encoding", "utf8", "-Yrangepos"),
+    scalacOptions := Seq(
+      "-feature",
+      "-deprecation",
+      "-unchecked",
+      "-Xlint",
+      "-encoding", "utf8",
+      "-Yrangepos",
+      "-Yno-adapted-args",
+      "-Ywarn-dead-code",
+      "-Ywarn-numeric-widen",   
+      "-Ywarn-value-discard"),
     scalacOptions in (console) += "-Yrangepos"
+    //scalacOptions in (Compile, compile) += "-P:wartremover:traverser:org.brianmckenna.wartremover.warts.Unsafe"
   )
 
   lazy val root = Project(id = "root", base = file("."))
@@ -48,6 +59,7 @@ object TopLevelBuild extends Build {
     Defaults.itSettings ++
     miscSettings :+
     addCompilerPlugin("org.scalamacros" %% "paradise" % "2.0.0-M3")
+    //addCompilerPlugin("org.brianmckenna" %% "wartremover" % "0.7")
     //publishSettings ++
     //releaseSettings ++
     //packagingSettings ++
