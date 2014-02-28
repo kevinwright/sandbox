@@ -111,7 +111,7 @@ object TopLevelBuild extends Build {
       (version: String, name: String, artifact: Artifact) =>
         Seq(ManifestAttributes(
           "Implementation-Vendor" -> "thecoda.net",
-          "Implementation-Title" -> "mindcandybowling",
+          "Implementation-Title" -> "sandbox",
           "Version" -> version,
           "Build-Number" -> optEnv("GO_PIPELINE_COUNTER").getOrElse("n/a"),
           "Group-Id" -> name,

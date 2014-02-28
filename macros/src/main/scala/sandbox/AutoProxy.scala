@@ -16,7 +16,7 @@ object DelegatingMacro {
       c.error(c.enclosingPosition, "This annotation can only be used on params, vals, vars or methods")
     }
         
-    val typeDiscovery = TypeDiscovery[c.type](c)
+    val typeDiscovery = new { val ctx: c.type = c } with TypeDiscovery
     import typeDiscovery._
     
     /**
