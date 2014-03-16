@@ -13,3 +13,6 @@ target/
 *.swp
 *.swo
 tags
+/.idea/
+/.idea_modules/
+/pmip/
