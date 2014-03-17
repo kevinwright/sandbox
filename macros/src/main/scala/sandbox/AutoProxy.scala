@@ -23,7 +23,7 @@ object DelegatingMacro {
 
 
     val typeDiscovery = new { val ctx: c.type = c } with TypeDiscovery
-    import typeDiscovery._
+    //import typeDiscovery._
     
     /**
      * @param methodSym: Symbol of the method (or accessor) being delegated
@@ -33,9 +33,9 @@ object DelegatingMacro {
 
       //TODO: Quasiquotes (if not prevented by the need for flags)
       //This is only passed through as params to the synDef quasiquote, surely there must be a less verbose way?
-      val vparamss = methodSym.paramss.map(_.map {
+      val vparamss = methodSym.paramLists.map(_.map {
         paramSymbol => ValDef(
-          Modifiers(Flag.PARAM, tpnme.EMPTY, List()),
+          Modifiers(Flag.PARAM, typeNames.EMPTY, List()),
           paramSymbol.name.toTermName,
           TypeTree(paramSymbol.typeSignature),
           EmptyTree)
@@ -50,7 +50,7 @@ object DelegatingMacro {
 
       // TODO: multi params list
       val delegateInvocation = {
-        val paramss = methodSym.paramss.flatMap( _.map(param => Ident(param.name)) )
+        val paramss = methodSym.paramLists.flatMap( _.map(param => Ident(param.name)) )
         q"${proxy.name}.${methodSym.name}(..$paramss)"
       }
 
@@ -103,30 +103,36 @@ object DelegatingMacro {
       val existingMethods: Set[TermName] = methodsIn(body) map (_.name)
 
       methodsIn(body) foreach { dd =>
+        val name = dd.name.toString
         //ALL I WANT IS THE F*ING TYPE Of THE METHOD. Why must it be *so* hard to get something that ain't `Any`?
-        log.rawInfo(dd.name.toString, dd)
+        log.rawInfo(name, dd)
 
 //        val tc = c.typecheck(q"{${dd.duplicate}}", silent = false, withMacrosDisabled = true)
 //        log.rawInfo("typechecked", tc.tpe)
 //        val expr = c.Expr(tc)
 //        log.rawInfo("expr type", expr.actualType)
 
-        log.rawInfo("dd.rhs", dd.rhs)
-        log.rawInfo("dd.tpt", dd.tpt)
-        val tpe = computeType(dd.tpt)
-        log.info(dd.name.toString + ".type = " + tpe)
+        log.rawInfo(name + ".rhs", dd.rhs)
+//        log.rawInfo(name + ".tpt", dd.tpt)
+//        val tpe = computeType(dd.tpt)
+//        log.info(name + ".tpe = " + tpe)
 
         try {
-          val blk = q"${dd.duplicate}" // reify {c.Expr[Any](dd).splice} //q"$dd; dd _"
-          val blktyped = ctx.typecheck(blk)
-          log.rawInfo("blktyped", blktyped)
-          log.rawInfo("blktyped.tpe", blktyped.tpe)
+          //val blk = q"${dd.duplicate}" // reify {c.Expr[Any](dd).splice} //q"$dd; dd _"
+          val typechecked = c.typecheck(dd.duplicate)
+          //val typechecked = ctx.typecheck(q"${dd.duplicate}")
+          log.rawInfo(name + ".typechecked", typechecked)
+          log.info(name + ".typechecked.symbol = " + typechecked.symbol)
+          log.rawInfo(name + ".typechecked.symbol [raw]", typechecked.symbol)
+          log.info(name + ".typechecked.symbol.info = " + typechecked.symbol.info)
+          log.rawInfo(name + ".typechecked.symbol.info [raw]", typechecked.symbol.info)
+          log.rawInfo(name + ".typechecked.tpe", typechecked.tpe)
         } catch { case e: Throwable => log.warn(e.toString)}
       }
 
       val methodsToAdd: Iterable[Symbol] = {
         log.rawInfo("pivot.tpt", pivot.tpt)
-        def allMethodsInDelegate: Iterable[Symbol] = computeType(pivot.tpt).declarations
+        def allMethodsInDelegate: Iterable[Symbol] = computeType(pivot.tpt).decls
         allMethodsInDelegate.filter(method => !existingMethods(method.name.toTermName))
       }
 
