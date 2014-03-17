@@ -19,9 +19,9 @@ object Dependencies {
 
   object Core {
     //lazy val scalaz     = "org.scalaz"                 %% "scalaz-core"                   % "7.1.0-M4"
-    lazy val shapeless   = "com.chuusai"                %% "shapeless"                     % "2.0.0-SNAPSHOT"
+    //lazy val shapeless   = "com.chuusai"                %% "shapeless"                     % "2.0.0-SNAPSHOT"
     lazy val slf4j       = "org.slf4j"                  %  "slf4j-api"                     % "1.7.5"
-    lazy val all = Seq(shapeless, slf4j) //scalaz
+    lazy val all = Seq(slf4j) //shapeless, scalaz
   }
 
   object Test {
@@ -29,7 +29,7 @@ object Dependencies {
     lazy val groovy     = "org.codehaus.groovy"        %  "groovy-all"                    % "1.7.6"   % "test"
     lazy val janino     = "org.codehaus.janino"        %  "janino"                        % "2.6.1"  % "test"
 //    lazy val specs2     = "org.specs2"                 %% "specs2"                        % "2.0-RC1" % "test"
-    lazy val scalatest  = "org.scalatest"              %% "scalatest"                     % "2.1.RC1"   % "test"
+    lazy val scalatest  = "org.scalatest"              %% "scalatest"                     % "2.1.0"   % "test"
     lazy val scalacheck = "org.scalacheck"             %% "scalacheck"                    % "1.11.3"  % "test"
     lazy val mockito    = "org.mockito"                %  "mockito-core"                  % "1.9.0"   % "test"
     lazy val hamcrest   = "org.hamcrest"               %  "hamcrest-core"                 % "1.3"     % "test"

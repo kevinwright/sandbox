@@ -15,7 +15,7 @@ object TopLevelBuild extends Build {
 
   lazy val buildSettings = Seq(
     organization := "net.thecoda.sandbox",
-    scalaVersion := "2.11.0-M8",
+    scalaVersion := "2.11.0-RC1",
     scalacOptions := Seq(
       "-feature",
       "-deprecation",

@@ -82,8 +82,8 @@ object DelegatingMacro {
 
       val ClassDef(mods, name, tparams, Template(parents, self, body)) = addToClass
 
-      val tcbody = c.typecheck(c.enclosingUnit.body.duplicate, withMacrosDisabled = true)
-      log.rawInfo("body", tcbody)
+//      val tcbody = c.typecheck(c.enclosingUnit.body.duplicate, withMacrosDisabled = true)
+//      log.rawInfo("body", tcbody)
 
 //      val ctorBlock @ Block(_,_) = q"val x = new ${addToClass.name.toTermName}; x"
 //      log.rawInfo("ctorBlock", ctorBlock)
@@ -102,15 +102,14 @@ object DelegatingMacro {
       //          Alternatively offer @proxy and @backupproxy
       val existingMethods: Set[TermName] = methodsIn(body) map (_.name)
 
-      /*
       methodsIn(body) foreach { dd =>
         //ALL I WANT IS THE F*ING TYPE Of THE METHOD. Why must it be *so* hard to get something that ain't `Any`?
         log.rawInfo(dd.name.toString, dd)
 
-        val tc = c.typecheck(q"{${dd.duplicate}}", silent = false, withMacrosDisabled = true)
-        log.rawInfo("typechecked", tc.tpe)
-        val expr = c.Expr(tc)
-        log.rawInfo("expr type", expr.actualType)
+//        val tc = c.typecheck(q"{${dd.duplicate}}", silent = false, withMacrosDisabled = true)
+//        log.rawInfo("typechecked", tc.tpe)
+//        val expr = c.Expr(tc)
+//        log.rawInfo("expr type", expr.actualType)
 
         log.rawInfo("dd.rhs", dd.rhs)
         log.rawInfo("dd.tpt", dd.tpt)
@@ -118,12 +117,12 @@ object DelegatingMacro {
         log.info(dd.name.toString + ".type = " + tpe)
 
         try {
-          val blk = q"class X { ${dd.duplicate} }" // reify {c.Expr[Any](dd).splice} //q"$dd; dd _"
-          val blktype = ctx.typecheck(blk)
-          log.rawInfo("blk.tpe", blktype.tpe)
+          val blk = q"${dd.duplicate}" // reify {c.Expr[Any](dd).splice} //q"$dd; dd _"
+          val blktyped = ctx.typecheck(blk)
+          log.rawInfo("blktyped", blktyped)
+          log.rawInfo("blktyped.tpe", blktyped.tpe)
         } catch { case e: Throwable => log.warn(e.toString)}
       }
-      */
 
       val methodsToAdd: Iterable[Symbol] = {
         log.rawInfo("pivot.tpt", pivot.tpt)

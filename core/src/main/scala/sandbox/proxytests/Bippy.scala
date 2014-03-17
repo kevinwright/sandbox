@@ -16,8 +16,8 @@ object DoublingBippy extends Bippy {
 
 class BippyValParamWrapper(@proxy val dg : Bippy) {
   def one(s: String) = s
-  def one(i: Int) = i
-  def two[T](x: T) = x
+  def two(i: Int) = i
+  def three[T](x: T) = x
   def dgtoo = dg
 }
 //class BippyVarParamWrapper(@proxy var dg : Bippy)
