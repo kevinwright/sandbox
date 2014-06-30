@@ -4,7 +4,9 @@ import scala.language.experimental.macros
 
 import scala.reflect.macros.whitebox.Context
 
-class proxy extends scala.annotation.StaticAnnotation {
+class proxy extends scala.annotation.StaticAnnotation
+
+class delegating extends scala.annotation.StaticAnnotation {
   def macroTransform(annottees: Any*): Any = macro DelegatingMacro.impl
 }
 
@@ -19,11 +21,13 @@ object DelegatingMacro {
       def rawInfo(name: String, obj: Any): Unit = info(name + " = " + showRaw(obj))
     }
 
+    log.info("annottees: " + annottees.mkString)
+
     def showInvalidUsageError(): Unit = log.err("This annotation can only be used on params, vals, vars or methods")
 
 
     val typeDiscovery = new { val ctx: c.type = c } with TypeDiscovery
-    //import typeDiscovery._
+    import typeDiscovery._
     
     /**
      * @param methodSym: Symbol of the method (or accessor) being delegated
@@ -71,7 +75,7 @@ object DelegatingMacro {
     }
 
     def methodsIn(body: List[Tree]): Set[DefDef] =
-      body.flatMap{ case dd : DefDef => Some(dd); case _ => None }(collection.breakOut)
+      body.flatMap{ case dd : DefDef => List(dd); case _ => Nil }(collection.breakOut)
 
     //TODO: Isolate logic that injects into a ClassDef
     //  If delegating via a non-param member then we won't have this surrounding
@@ -79,6 +83,12 @@ object DelegatingMacro {
     //  Instead, we can perform an in-place expansion of one def to multiple defs,
     //  and warn the user of our inability to also expose proxied interfaces.
     def addDelegateMethods(pivot: ValOrDefDef, addToClass: ClassDef) = {
+
+      val classTree = ctx.typecheck(addToClass.duplicate, silent = true, withMacrosDisabled = true)
+      val classSym = classTree.symbol.asClass
+      val classType = classSym.info
+
+      log.rawInfo("classSym", classSym)
 
       val ClassDef(mods, name, tparams, Template(parents, self, body)) = addToClass
 
@@ -102,6 +112,9 @@ object DelegatingMacro {
       //          Alternatively offer @proxy and @backupproxy
       val existingMethods: Set[TermName] = methodsIn(body) map (_.name)
 
+//      classSym
+
+/*
       methodsIn(body) foreach { dd =>
         val name = dd.name.toString
         //ALL I WANT IS THE F*ING TYPE Of THE METHOD. Why must it be *so* hard to get something that ain't `Any`?
@@ -112,23 +125,25 @@ object DelegatingMacro {
 //        val expr = c.Expr(tc)
 //        log.rawInfo("expr type", expr.actualType)
 
-        log.rawInfo(name + ".rhs", dd.rhs)
+//        log.rawInfo(name + ".rhs", dd.rhs)
 //        log.rawInfo(name + ".tpt", dd.tpt)
 //        val tpe = computeType(dd.tpt)
 //        log.info(name + ".tpe = " + tpe)
 
         try {
           //val blk = q"${dd.duplicate}" // reify {c.Expr[Any](dd).splice} //q"$dd; dd _"
-          val typechecked = c.typecheck(dd.duplicate)
+          val typechecked = c.typecheck(dd)
           //val typechecked = ctx.typecheck(q"${dd.duplicate}")
-          log.rawInfo(name + ".typechecked", typechecked)
+          //log.rawInfo(name + ".typechecked", typechecked)
+          if(dd.name.toString == "<init>") { log.info("=CONSTRUCTOR=")}
           log.info(name + ".typechecked.symbol = " + typechecked.symbol)
-          log.rawInfo(name + ".typechecked.symbol [raw]", typechecked.symbol)
+          //log.rawInfo(name + ".typechecked.symbol [raw]", typechecked.symbol)
           log.info(name + ".typechecked.symbol.info = " + typechecked.symbol.info)
           log.rawInfo(name + ".typechecked.symbol.info [raw]", typechecked.symbol.info)
-          log.rawInfo(name + ".typechecked.tpe", typechecked.tpe)
+          //log.rawInfo(name + ".typechecked.tpe", typechecked.tpe)
         } catch { case e: Throwable => log.warn(e.toString)}
       }
+*/
 
       val methodsToAdd: Iterable[Symbol] = {
         log.rawInfo("pivot.tpt", pivot.tpt)
@@ -144,10 +159,17 @@ object DelegatingMacro {
 
       ClassDef(mods, name, tparams, Template(parents, self, body ++ newMethods))
     }
-    
+
+    def processClass(clazz: ClassDef): ClassDef = clazz
+
     val inputs = annottees.map(_.tree).toList
     
     val (_, expandees) = inputs match {
+      case (clazz: ClassDef) :: rest =>
+        log.info("We're a class")
+        //val newEnclosing = addDelegateMethods(param, enclosing)
+        (EmptyTree, processClass(clazz) :: rest)
+
       case (param: ValOrDefDef) :: (enclosing: ClassDef) :: rest =>
         //We're a param, and the ClassDef is supplied
         val newEnclosing = addDelegateMethods(param, enclosing)
