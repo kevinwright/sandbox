@@ -81,37 +81,35 @@ object DelegatingMacro {
       }
     }
 
-    def processClass(clazz: ClassDef): ClassDef = {
-      val tcClazz = treeOf(clazz)
-      val sym = tcClazz.symbol.asType
-      val pivots = proxyPivots(sym)
+    def methodsOn(s: Symbol): Set[MethodSymbol] = s.info.members.collect{
+      case ms: MethodSymbol => ms
+    }(breakOut)
 
-      val existingMethods: Set[MethodSymbol] = sym.info.members.collect{
+    def processClass(clazz: ClassDef): ClassDef = {
+      val clazzSym = treeOf(clazz).symbol.asType
+      val pivots = proxyPivots(clazzSym)
+
+      val existingMethods: Set[MethodSymbol] = clazzSym.info.members.collect{
         case ms: MethodSymbol => ms
       }(breakOut)
 
-      val existingInterfaces = sym.info.baseClasses.toSet
+      val existingInterfaces = clazzSym.info.baseClasses.toSet
 
       val (existingAbstractMethods, existingConcreteMethods) = existingMethods.partition(_.isAbstract)
 
       val proxyProvidedMethods: Map[Symbol, Set[MethodSymbol]] = pivots.map{ p =>
-        val methods: Set[MethodSymbol] = p.info.members.collect{
-          case ms: MethodSymbol if !existingConcreteMethods.contains(ms) => ms
-        }(breakOut)
-
-        p -> methods
+        p -> (methodsOn(p) -- existingConcreteMethods)
       }(breakOut)
 
       val proxyProvidedInterfaces: Map[Symbol, Set[Symbol]] = pivots.map{ p =>
-        p -> p.info.baseClasses.filter{ !existingInterfaces.contains(_) }.toSet
+        p -> (p.info.baseClasses.toSet -- existingInterfaces)
       }(breakOut)
 
       proxyProvidedMethods foreach { case (pivot,methods) =>
-        println(s"PPM for ${pivot.name} = ${methods.mkString}")
+        println(s"Provided Methods for ${pivot.name} = ${methods.mkString}")
       }
 
-      val delegates: Seq[Tree] = mkDelegates(proxyProvidedMethods)
-      injectMembers(clazz, delegates)
+      injectMembers(clazz, mkDelegates(proxyProvidedMethods))
     }
 
     def processModule(mod: ModuleDef): ModuleDef = {
