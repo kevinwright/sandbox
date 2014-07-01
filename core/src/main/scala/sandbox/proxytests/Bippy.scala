@@ -24,9 +24,9 @@ class BippyValParamWrapper(@sandbox.proxy val dg : Bippy) {
 
 
 
-//class BippyValWrapper {
-//  @proxy val dg = SimpleBippy
-//}
+class BippyValWrapper {
+  @proxy val dg = SimpleBippy
+}
 
 //class BippyVarWrapper {
 //  @proxy var dg = SimpleBippy
