@@ -15,7 +15,7 @@ object TopLevelBuild extends Build {
 
   lazy val buildSettings = Seq(
     organization := "net.thecoda.sandbox",
-    scalaVersion := "2.11.0-RC1",
+    scalaVersion := "2.11.1",
     scalacOptions := Seq(
       "-feature",
       "-deprecation",
@@ -32,7 +32,7 @@ object TopLevelBuild extends Build {
   )
 
   lazy val root = Project(id = "root", base = file("."))
-    .aggregate(core, cli)
+    .aggregate(macros, core, cli)
     .settings(commonSettings : _*)
 
   lazy val macros = Project(id = "macros", base = file("macros"))
@@ -57,8 +57,8 @@ object TopLevelBuild extends Build {
     graphSettings ++
     releaseSettings ++
     Defaults.itSettings ++
-    miscSettings :+
-    addCompilerPlugin("org.scalamacros" %% "paradise" % "2.0.0-M3")
+    miscSettings
+    //addCompilerPlugin("org.scalamacros" %% "paradise" % "2.1.0-M1")
     //addCompilerPlugin("org.brianmckenna" %% "wartremover" % "0.7")
     //publishSettings ++
     //releaseSettings ++
@@ -69,6 +69,8 @@ object TopLevelBuild extends Build {
   lazy val miscSettings = Seq(
     resolvers ++= Resolvers.all,
     ivyXML := ivyDeps,
+    autoCompilerPlugins := true,
+    addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0-M1" cross CrossVersion.full),
     libraryDependencies ++= Dependencies.core,
     libraryDependencies ++= Dependencies.test,
     libraryDependencies <++= (scalaVersion)(sv =>
