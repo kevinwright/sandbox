@@ -51,7 +51,7 @@ object TopLevelBuild extends Build {
 
 
 
-  lazy val commonSettings = Defaults.defaultSettings ++
+  lazy val commonSettings =
     sbtPromptSettings ++
     buildSettings ++
     graphSettings ++

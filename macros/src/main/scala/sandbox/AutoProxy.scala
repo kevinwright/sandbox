@@ -3,6 +3,7 @@ package sandbox
 import scala.language.experimental.macros
 import scala.reflect.macros.whitebox.Context
 import collection.breakOut
+import LogUtils._
 
 class proxy extends scala.annotation.StaticAnnotation
 
@@ -10,124 +11,148 @@ class delegating extends scala.annotation.StaticAnnotation {
   def macroTransform(annottees: Any*): Any = macro DelegatingMacro.impl
 }
 
+
 object DelegatingMacro {
   def impl(c: Context)(annottees: c.Expr[Any]*): c.Expr[Any] = {
     import c.universe._
+    val theMacro = mkInstance(c)
+    import theMacro.{processClass, processModule, showDelegateUsageError}
 
-    println("in the macro!")
-    object log {
-      def err(msg: String): Unit = c.error(c.enclosingPosition, msg)
-      def warn(msg: String): Unit = c.warning(c.enclosingPosition, msg)
-      def info(msg: String): Unit = c.info(c.enclosingPosition, msg, force=true)
-      def rawInfo(name: String, obj: Any): Unit = info(name + " = " + showRaw(obj))
-    }
-
-    println("annottees: " + annottees.mkString)
-
-    def showDelegateUsageError(): Unit = log.err("The @delegate annotation can only be used on classes or objects")//params, vals, vars or methods")
-
-    def treeOf[T <: ImplDef](impl: T): T =
-      c.typecheck(impl.duplicate, silent = true, withMacrosDisabled = true).asInstanceOf[T]
-
-    def symOf(impl: ImplDef): TypeSymbol =
-      treeOf(impl).symbol.asType
-
-    def injectMembers(clazz: ClassDef, newMembers: Seq[Tree]): ClassDef = {
-      val ClassDef(mods, name, tparams, Template(parents, self, body)) = clazz
-      ClassDef(mods, name, tparams, Template(parents, self, body ++ newMembers))
-    }
-
-    def hasProxyAnnotation(sym: Symbol): Boolean = sym.annotations.exists(_.toString == classOf[proxy].getName)
-
-    def proxyPivots(sym: TypeSymbol): Seq[Symbol] = {
-      val ctorParams = sym.info.decls collect {
-        case ms: MethodSymbol if ms.name.toString == "<init>" => ms
-      } flatMap(_.paramLists.flatten)
-
-      val candidates = ctorParams ++ sym.info.decls
-
-      candidates.collect{case s: Symbol if hasProxyAnnotation(s) => s}(breakOut)
-    }
-
-    /**
-     * @param origins A mapping from pivot symbols to symbols of provided methods
-     * @return a List of delgating method trees
-     */
-    def mkDelegates(origins: Map[Symbol, Set[MethodSymbol]]): Seq[Tree] = {
-      for {
-        (pivot, methods) <- origins.toSeq
-        method <- methods
-      } yield {
-        val name = method.name.toTermName
-        val paramss = method.paramLists
-        val ret = method.returnType
-
-        val delegateInvocation = {
-          val argss = method.paramLists.map( _.map(param => Ident(param.name)) )
-          q"${pivot.name.toTermName}.${method.name}(...$argss)"
-        }
-
-        val vparamss = method.paramLists.map(_.map {
-          paramSymbol => ValDef(
-            Modifiers(Flag.PARAM, typeNames.EMPTY, List()),
-            paramSymbol.name.toTermName,
-            TypeTree(paramSymbol.typeSignature),
-            EmptyTree)
-        })
-
-        val delegate = q"""def $name(...${vparamss}): $ret = $delegateInvocation"""
-        println("delegate: " + delegate)
-        delegate
-      }
-    }
-
-    def methodsOn(s: Symbol): Set[MethodSymbol] = s.info.members.collect{
-      case ms: MethodSymbol => ms
-    }(breakOut)
-
-    def processClass(clazz: ClassDef): ClassDef = {
-      val clazzSym = treeOf(clazz).symbol.asType
-      val pivots = proxyPivots(clazzSym)
-
-      val existingMethods: Set[MethodSymbol] = clazzSym.info.members.collect{
-        case ms: MethodSymbol => ms
-      }(breakOut)
-
-      val existingInterfaces = clazzSym.info.baseClasses.toSet
-
-      val (existingAbstractMethods, existingConcreteMethods) = existingMethods.partition(_.isAbstract)
-
-      val proxyProvidedMethods: Map[Symbol, Set[MethodSymbol]] = pivots.map{ p =>
-        p -> (methodsOn(p) -- existingConcreteMethods)
-      }(breakOut)
-
-      val proxyProvidedInterfaces: Map[Symbol, Set[Symbol]] = pivots.map{ p =>
-        p -> (p.info.baseClasses.toSet -- existingInterfaces)
-      }(breakOut)
-
-      proxyProvidedMethods foreach { case (pivot,methods) =>
-        println(s"Provided Methods for ${pivot.name} = ${methods.mkString}")
-      }
-
-      injectMembers(clazz, mkDelegates(proxyProvidedMethods))
-    }
-
-    def processModule(mod: ModuleDef): ModuleDef = {
-      val sym = symOf(mod)
-      mod
-    }
+    vprintln("annottees: " + annottees.mkString)
 
     val inputs = annottees.map(_.tree).toList
-    
-    val expandees = inputs match {
+
+    val code = inputs match {
+      // Workaround here for https://github.com/scalamacros/paradise/issues/50 when the class lacks a companion
+      case (clazz: ClassDef) :: Nil       => processClass(clazz) :: q"object ${clazz.name.toTermName}" :: Nil
       case (clazz: ClassDef) :: rest      => processClass(clazz) :: rest
       case (singleton: ModuleDef) :: rest => processModule(singleton) :: rest
       case _                              => showDelegateUsageError(); inputs
     }
-    val outputs = expandees
-    c.Expr[Any](Block(outputs, Literal(Constant(()))))
+
+    vprintln(s"delegating macro transform expands to:\n ${code}")
+
+    // Mark range positions for synthetic code as transparent to allow some wiggle room for overlapping ranges
+    //for (t <- code) t.setPos(t.pos.makeTransparent)
+    c.Expr[Any](Block(code, Literal(Constant(()))))
+  }
+
+  def mkInstance(c0: Context): DelegatingMacro { val c: c0.type } = {
+    //import language.reflectiveCalls
+    new DelegatingMacro {
+      //type C = c0.type
+      val c: c0.type = c0
+    }
   }
 }
+
+trait MacroBase {
+  //type C <: Context
+  val c: Context
+}
+
+trait DelegatingMacro extends MacroBase {
+  import c.universe._
+
+  def showDelegateUsageError(): Unit = c.error(c.enclosingPosition,"The @delegate annotation can only be used on classes or objects")//params, vals, vars or methods")
+
+  def treeOf[T <: ImplDef](impl: T): T =
+    //typeCheckExpressionOfType(impl).asInstanceOf[T]
+    c.typecheck(impl.duplicate, silent = true, withMacrosDisabled = true).asInstanceOf[T]
+
+  def typeSymOf(impl: ImplDef): TypeSymbol =
+    treeOf(impl).symbol.asType
+
+  def injectMembers(clazz: ClassDef, newMembers: Seq[Tree]): ClassDef = {
+    val ClassDef(mods, name, tparams, Template(parents, self, body)) = clazz
+    ClassDef(mods, name, tparams, Template(parents, self, body ++ newMembers))
+  }
+
+  def hasProxyAnnotation(sym: Symbol): Boolean = sym.annotations.exists(_.toString == classOf[proxy].getName)
+
+  def proxyPivots(tpe: TypeSymbol): Seq[Symbol] = {
+    val tpeInfo = tpe.info
+    val ctorParams = tpeInfo.decls collect {
+      case ms: MethodSymbol if ms.name.toString == "<init>" => ms
+    } flatMap(_.paramLists.flatten)
+
+    val candidates = ctorParams ++ tpeInfo.decls
+
+    candidates.collect{case s: Symbol if hasProxyAnnotation(s) => s}(breakOut)
+  }
+
+  /**
+   * @param origins A mapping from pivot symbols to symbols of provided methods
+   * @return a List of delgating method trees
+   */
+  def mkDelegates(origins: Map[Symbol, Set[MethodSymbol]]): Seq[Tree] = {
+    for {
+      (pivot, methods) <- origins.toSeq
+      method <- methods
+    } yield {
+      val name = method.name.toTermName
+      val paramss = method.paramLists
+      val ret = method.returnType
+
+      val delegateInvocation = {
+        val argss = method.paramLists.map( _.map(param => Ident(param.name)) )
+        q"${pivot.name.toTermName}.${method.name}(...$argss)"
+      }
+
+      val vparamss = method.paramLists.map(_.map {
+        paramSymbol => ValDef(
+          Modifiers(Flag.PARAM, typeNames.EMPTY, List()),
+          paramSymbol.name.toTermName,
+          TypeTree(paramSymbol.typeSignature),
+          EmptyTree)
+      })
+
+      val delegate = q"""def $name(...${vparamss}): $ret = $delegateInvocation"""
+      vprintln("delegate: " + delegate)
+      delegate
+    }
+  }
+
+  def methodsOn(s: Symbol): Set[MethodSymbol] = s.info.members.collect{
+    case ms: MethodSymbol => ms
+  }(breakOut)
+
+  def processClass(clazz: ClassDef): ClassDef = {
+    val tpe = treeOf(clazz).symbol.asType
+    val tpeInfo = tpe.info
+    val pivots = proxyPivots(tpe)
+
+    val existingMethods: Set[MethodSymbol] = tpeInfo.members.collect{
+      case ms: MethodSymbol => ms
+    }(breakOut)
+
+    val existingInterfaces = tpeInfo.baseClasses.toSet
+
+    val (existingAbstractMethods, existingConcreteMethods) = existingMethods.partition(_.isAbstract)
+
+    val proxyProvidedMethods: Map[Symbol, Set[MethodSymbol]] = pivots.map{ p =>
+      p -> (methodsOn(p) -- existingConcreteMethods)
+    }(breakOut)
+
+    val proxyProvidedInterfaces: Map[Symbol, Set[Symbol]] = pivots.map{ p =>
+      p -> (p.info.baseClasses.toSet -- existingInterfaces)
+    }(breakOut)
+
+    proxyProvidedMethods foreach { case (pivot,methods) =>
+      vprintln(s"Provided Methods for ${pivot.name} = ${methods.mkString}")
+    }
+
+    injectMembers(clazz.duplicate.asInstanceOf[ClassDef], mkDelegates(proxyProvidedMethods))
+  }
+
+  def processModule(mod: ModuleDef): ModuleDef = {
+    val sym = typeSymOf(mod)
+    mod
+  }
+}
+
+
+
 
 
 /*

@@ -15,19 +15,22 @@ object DoublingBippy extends Bippy {
 }
 
 @delegating
-class BippyValParamWrapper(@sandbox.proxy val dg : Bippy) {
+class BippyValParamWrapper(@proxy val dg : Bippy) {
   def one(s: String) = s
   def two(i: Int) = i
   def three[T](x: T) = x
   def dgtoo = dg
 }
 
+@delegating
+class BippyVarParamWrapper(@proxy var dg : Bippy)
 
-
+@delegating
 class BippyValWrapper {
-  @proxy val dg = SimpleBippy
+  @proxy val dg: Bippy = SimpleBippy
 }
 
-//class BippyVarWrapper {
-//  @proxy var dg = SimpleBippy
-//}
+@delegating
+class BippyVarWrapper {
+  @proxy var dg: Bippy = SimpleBippy
+}

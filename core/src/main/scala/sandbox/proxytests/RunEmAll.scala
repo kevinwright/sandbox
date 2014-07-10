@@ -14,9 +14,9 @@ object RunEmAll extends App {
 
   val wrap3 = new BippyValWrapper
   println(wrap3.bippy(42))
-//  
-//  val wrap4 = new BippyVarWrapper
-//  println(wrap4.bippy(42))
-//  wrap4.dg = DoublingBippy
-//  println(wrap4.bippy(42))
+
+  val wrap4 = new BippyVarWrapper
+  println(wrap4.bippy(42))
+  wrap4.dg = DoublingBippy
+  println(wrap4.bippy(42))
 }
