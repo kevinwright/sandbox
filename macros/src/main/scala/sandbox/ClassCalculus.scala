@@ -31,7 +31,7 @@ trait ClassCalculus extends MacroBase {
     val existingConcreteMethodSigs = existingConcreteMethods map {_.typeSignature}
 
     val pivotProvidedMethods: Map[Symbol, Set[MethodSymbol]] = pivots.map{ p =>
-      p -> (methodsOn(p) filter {m => !existingConcreteMethodSigs.exists(_ =:= m.typeSignature)})
+      p -> (methodsOn(p) filter {m => m.isPublic && !existingConcreteMethodSigs.exists(_ =:= m.typeSignature)})
     }(breakOut)
 
     {
