@@ -1,6 +1,6 @@
 package sandbox.proxytests
 
-import sandbox.{delegating, proxy}
+import sandbox.{dgt, delegating, proxy}
 
 trait Bippy {
   def bippy(i : Int) : String
@@ -14,34 +14,28 @@ object DoublingBippy extends Bippy {
   def bippy(i: Int) = (i*2).toString
 }
 
-@delegating
-class BippyValParamWrapper(@proxy val dg : Bippy) {
+@delegating class BippyValParamWrapper(@proxy val dg : Bippy) {
   def one(s: String) = s
   def two(i: Int) = i
   def three[T](x: T) = x
   def dgtoo = dg
 }
 
-@delegating
-class BippyVarParamWrapper(@proxy var dg : Bippy)
+@delegating class BippyVarParamWrapper(@proxy var dg : Bippy)
 
-@delegating
-class BippyValWrapper {
+@delegating class BippyValWrapper {
   @proxy val dg: Bippy = SimpleBippy
 }
 
-@delegating
-class BippyVarWrapper {
+@delegating class BippyVarWrapper {
   @proxy var dg: Bippy = SimpleBippy
 }
 
-@delegating
-object SingletonBippyWithProxyVar {
+@delegating object SingletonBippyWithProxyVar {
   @proxy var dg: Bippy = SimpleBippy
 }
 
-@delegating
-object SmarterProps {
+@dgt object SmarterProps {
   @proxy private[this] object props {
     var x: Int = 0
     var y: String = ""

@@ -15,6 +15,10 @@ class delegating extends scala.annotation.StaticAnnotation {
   def macroTransform(annottees: Any*): Any = macro DelegatingMacro.impl
 }
 
+class dgt extends scala.annotation.StaticAnnotation {
+  def macroTransform(annottees: Any*): Any = macro DelegatingMacro.impl
+}
+
 class proxytag extends scala.annotation.StaticAnnotation
 
 
@@ -183,7 +187,7 @@ trait DelegatingMacro extends MacroBase with ClassCalculus {
     val pivots = proxyPivots(modClassSym)
 
     val workSummary = summariseWork(modInfo, pivots)
-    import workSummary.{pivotProvidedMethods,existingConcreteMethods}
+    import workSummary.pivotProvidedMethods
 
     pivotProvidedMethods foreach { case (pivot,methods) =>
       vprintln(s"Provided Methods for ${pivot.name} = ${methods.mkString}")
