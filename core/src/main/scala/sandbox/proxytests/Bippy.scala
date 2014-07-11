@@ -1,6 +1,6 @@
 package sandbox.proxytests
 
-import sandbox.{dgt, delegating, proxy}
+import sandbox.{delegating, proxy}
 
 object inner {
   trait SomeTrait
@@ -39,10 +39,25 @@ object DoublingBippy extends Bippy {
   @proxy var dg: Bippy = SimpleBippy
 }
 
-@dgt object SmarterProps {
+@delegating object SmarterProps {
   @proxy private[this] object props {
     var x: Int = 0
     var y: String = ""
   }
   def y_=(txt: String): Unit = { props.y = txt + " banana"}
+}
+
+@delegating class Clash {
+  @proxy val one: Bippy = SimpleBippy
+  @proxy val two: Bippy = DoublingBippy
+}
+
+class Jeopardy[T] {
+  private var it: T = _
+  def doit(): T = it
+}
+
+@delegating class DoubleJeopardy {
+  @proxy val one = new Jeopardy[Int]
+  @proxy val two = new Jeopardy[String]
 }

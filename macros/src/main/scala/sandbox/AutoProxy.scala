@@ -15,10 +15,6 @@ class delegating extends scala.annotation.StaticAnnotation {
   def macroTransform(annottees: Any*): Any = macro DelegatingMacro.impl
 }
 
-class dgt extends scala.annotation.StaticAnnotation {
-  def macroTransform(annottees: Any*): Any = macro DelegatingMacro.impl
-}
-
 class proxytag extends scala.annotation.StaticAnnotation
 
 
@@ -38,7 +34,7 @@ object DelegatingMacro {
 
     val code = theMacro.process(inputs)
 
-    println(s"delegating macro transform expands to:\n ${code}")
+    vprintln(s"delegating macro transform expands to:\n ${code}")
 
     // Mark range positions for synthetic code as transparent to allow some wiggle room for overlapping ranges
     //for (t <- code) t.setPos(t.pos.makeTransparent)
@@ -78,8 +74,8 @@ trait DelegatingMacro extends MacroBase with ClassCalculus {
     treeOf(impl).symbol.asType
 
   def injectMembers(templ: Template, newMembers: Seq[Tree], newInterfaces: List[Tree]): Template = {
-    println(s"templateParents = ${templ.parents.map(showRaw(_))}}")
-    println(s"injecting interfaces = ${newInterfaces.map(showRaw(_))}}")
+    vprintln(s"templateParents = ${templ.parents}}")
+    vprintln(s"injecting interfaces = ${newInterfaces}")
     Template(templ.parents ++ newInterfaces, templ.self, templ.body ++ newMembers)
   }
 
@@ -181,8 +177,8 @@ trait DelegatingMacro extends MacroBase with ClassCalculus {
 //      vprintln(s"Provided interfaces for ${pivot.name} = ${interfaces.mkString}")
 //    }
 
-    val newClassDef = injectMembers(clazz.duplicate.asInstanceOf[ClassDef], mkDelegates(pivotProvidedMethods), pivotProvidedInterfaceTrees)
-    newClassDef
+    if(c.hasErrors) clazz
+    else injectMembers(clazz.duplicate.asInstanceOf[ClassDef], mkDelegates(pivotProvidedMethods), pivotProvidedInterfaceTrees)
   }
 
   def processModule(mod0: ModuleDef): ModuleDef = {

@@ -34,25 +34,46 @@ trait ClassCalculus extends MacroBase {
       p -> (methodsOn(p) filter {m => !existingConcreteMethodSigs.exists(_ =:= m.typeSignature)})
     }(breakOut)
 
+    {
+      val flatProvidedMethods: Set[MethodSymbol] = pivotProvidedMethods.flatMap(_._2)(breakOut)
+      val methodsToProviders: Map[MethodSymbol, Set[Symbol]] = flatProvidedMethods.map{ m =>
+        val providers: Set[Symbol] = pivotProvidedMethods.collect{case (k,v) if v contains m => k}(breakOut)
+        m -> providers
+      }(breakOut)
+      val dupes = methodsToProviders.filter(_._2.size > 1)
+      //println("dupes: " + dupes)
+      for((method, pivots) <- dupes) {
+        c.error(c.enclosingPosition, s"ambiguous proxy, the method '${method.name}${method.typeSignature}' is provided by ${pivots.mkString("'", "' and '", "'")}")
+      }
+    }
 
     val pivotProvidedInterfaces: Map[Symbol, List[Symbol]] = pivots.map{ p =>
-      println(s"pivot base classes for ${p.name} = ${p.info.baseClasses}")
-      println(s"existing base classes for $clazzSym = $existingInterfaces")
+      //println(s"pivot base classes for ${p.name} = ${p.info.baseClasses}")
+      //println(s"existing base classes for $clazzSym = $existingInterfaces")
       //tail, because we don't want to include the base type itself
       p -> (p.info.baseClasses filterNot existingInterfaces.contains filterNot (_.toString == p.toString))
     }(breakOut)
 
-    println(s"interfaces to inject = $pivotProvidedInterfaces")
+    private def stringDistinct[T](xs: List[T]): List[T] = {
+      val b = List.newBuilder[T]
+      val seen = collection.mutable.HashSet[String]()
+      for (x <- xs) {
+        if (!seen(x.toString)) {
+          b += x
+          seen += x.toString
+        }
+      }
+      b.result()
+    }
 
-
-    val pivotProvidedInterfaceTrees: List[Tree] = (
+    val pivotProvidedInterfaceTrees: List[Tree] = stringDistinct(
       for {
         _ <- List(1) // force a List monad
         (_, syms) <- pivotProvidedInterfaces
         sym <- syms
       } yield {
         val symStr = sym.fullName
-        println("sym = " + symStr)
+        //println("sym = " + symStr)
         val symPath = symStr.split('.').toList
         @annotation.tailrec def mkTree(path: List[String], acc: Tree = EmptyTree): Tree = path match {
           case x :: Nil => Select(acc, TypeName(x))
@@ -60,11 +81,10 @@ trait ClassCalculus extends MacroBase {
           case h :: t => mkTree(t, Select(acc, TermName(h)))
         }
         val symTree = mkTree(symPath)
-        println(s"$symTree")
+        //println(s"$symTree")
         symTree
-        //q"${TermName(symStr)}"
       }
-    ).distinct
+    )
 
   }
 
