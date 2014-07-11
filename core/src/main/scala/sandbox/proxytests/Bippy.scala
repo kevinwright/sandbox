@@ -34,3 +34,7 @@ class BippyValWrapper {
 class BippyVarWrapper {
   @proxy var dg: Bippy = SimpleBippy
 }
+
+class HasNakedMember {
+  @proxy val dg: Bippy = SimpleBippy
+}

@@ -5,14 +5,20 @@ import scala.reflect.macros.whitebox.Context
 import collection.breakOut
 import LogUtils._
 
-class proxy extends scala.annotation.StaticAnnotation
+class proxy extends scala.annotation.StaticAnnotation {
+  def macroTransform(annottees: Any*): Any = macro DelegatingMacro.nakedProxyImpl
+}
 
 class delegating extends scala.annotation.StaticAnnotation {
   def macroTransform(annottees: Any*): Any = macro DelegatingMacro.impl
 }
 
+class proxytag extends scala.annotation.StaticAnnotation
+
 
 object DelegatingMacro {
+
+
   def impl(c: Context)(annottees: c.Expr[Any]*): c.Expr[Any] = {
     import c.universe._
     val theMacro = mkInstance(c)
@@ -28,6 +34,30 @@ object DelegatingMacro {
       case (clazz: ClassDef) :: rest      => processClass(clazz) :: rest
       case (singleton: ModuleDef) :: rest => processModule(singleton) :: rest
       case _                              => showDelegateUsageError(); inputs
+    }
+
+    println(s"delegating macro transform expands to:\n ${code}")
+
+    // Mark range positions for synthetic code as transparent to allow some wiggle room for overlapping ranges
+    //for (t <- code) t.setPos(t.pos.makeTransparent)
+    c.Expr[Any](Block(code, Literal(Constant(()))))
+  }
+
+  def nakedProxyImpl(c: Context)(annottees: c.Expr[Any]*): c.Expr[Any] = {
+    import c.universe._
+    val theMacro = mkInstance(c)
+    import theMacro.{processClass, processNakedMember, showProxyUsageError, showProxyUsageWarning}
+
+    println("annottees: " + annottees.mkString)
+
+    val inputs = annottees.map(_.tree).toList
+
+    val code = inputs match {
+      // Workaround here for https://github.com/scalamacros/paradise/issues/50 when the class lacks a companion
+      //case (param: ValOrDefDef) :: (clazz: ClassDef) :: Nil       => param :: processClass(clazz) :: q"object ${clazz.name.toTermName}" :: Nil
+      //case (param: ValOrDefDef) :: (clazz: ClassDef) :: rest      => param :: processClass(clazz) :: rest
+      case (param: ValOrDefDef) :: Nil                            => showProxyUsageWarning(); processNakedMember(param)
+      case _                                                      => showProxyUsageError(); inputs
     }
 
     vprintln(s"delegating macro transform expands to:\n ${code}")
@@ -54,7 +84,17 @@ trait MacroBase {
 trait DelegatingMacro extends MacroBase {
   import c.universe._
 
-  def showDelegateUsageError(): Unit = c.error(c.enclosingPosition,"The @delegate annotation can only be used on classes or objects")//params, vals, vars or methods")
+  def posErr(s: String) = c.error(c.enclosingPosition,s)
+  def posWarn(s: String) = c.warning(c.enclosingPosition,s)
+
+  def showDelegateUsageError(): Unit = posErr("The @delegate annotation can only be used on classes or objects")
+
+  def showProxyUsageError(): Unit = posErr("The @proxy annotation can only be used on params, vals, vars or methods")
+
+  def showProxyUsageWarning(): Unit = {
+    posWarn("A naked @proxy annotation only allows full functionality when used on constructor params")
+    posWarn("Consider annotating the surrounding class/object with @delegating")
+  }
 
   def treeOf[T <: ImplDef](impl: T): T =
     //typeCheckExpressionOfType(impl).asInstanceOf[T]
@@ -68,7 +108,10 @@ trait DelegatingMacro extends MacroBase {
     ClassDef(mods, name, tparams, Template(parents, self, body ++ newMembers))
   }
 
-  def hasProxyAnnotation(sym: Symbol): Boolean = sym.annotations.exists(_.toString == classOf[proxy].getName)
+  def hasProxyAnnotation(sym: Symbol): Boolean = {
+//    println("annotations: " + sym.annotations.mkString(","))
+    sym.annotations.exists(_.toString == "sandbox.proxytag")
+  }
 
   def proxyPivots(tpe: TypeSymbol): Seq[Symbol] = {
     val tpeInfo = tpe.info
@@ -117,7 +160,28 @@ trait DelegatingMacro extends MacroBase {
     case ms: MethodSymbol => ms
   }(breakOut)
 
-  def processClass(clazz: ClassDef): ClassDef = {
+  object ProxyHidingTransformer extends Transformer {
+    override def transformModifiers(mods: Modifiers): Modifiers = {
+      val Modifiers(flags, privateWithin, annotations) = mods
+      val updatedannotations = annotations map { ann => ann match {
+        case q"new $p()" if p.toString.endsWith("proxy") =>
+          q"new sandbox.proxytag()"
+        case x => x
+      }}
+      Modifiers(flags, privateWithin, updatedannotations)
+    }
+  }
+
+  def processNakedMember(mem: ValOrDefDef): List[Tree] = {
+    val typechecked = c.typecheck(mem.duplicate, silent = true, withMacrosDisabled = true)
+    val sym = typechecked.symbol //.asType
+    val owner = sym.owner
+    println("owner=" + owner)
+    List(mem)
+  }
+
+  def processClass(clazz0: ClassDef): Tree = {
+    val clazz = ProxyHidingTransformer.transform(clazz0).asInstanceOf[ClassDef]
     val tpe = treeOf(clazz).symbol.asType
     val tpeInfo = tpe.info
     val pivots = proxyPivots(tpe)
@@ -142,12 +206,21 @@ trait DelegatingMacro extends MacroBase {
       vprintln(s"Provided Methods for ${pivot.name} = ${methods.mkString}")
     }
 
-    injectMembers(clazz.duplicate.asInstanceOf[ClassDef], mkDelegates(proxyProvidedMethods))
+    val newClassDef = injectMembers(clazz.duplicate.asInstanceOf[ClassDef], mkDelegates(proxyProvidedMethods))
+    newClassDef
   }
 
   def processModule(mod: ModuleDef): ModuleDef = {
     val sym = typeSymOf(mod)
     mod
+  }
+
+  def process(inputs: List[Tree]): List[Tree] = inputs match {
+    // Workaround here for https://github.com/scalamacros/paradise/issues/50 when the class lacks a companion
+    case (clazz: ClassDef) :: Nil       => processClass(clazz) :: q"object ${clazz.name.toTermName}" :: Nil
+    case (clazz: ClassDef) :: rest      => processClass(clazz) :: rest
+    case (singleton: ModuleDef) :: rest => processModule(singleton) :: rest
+    case _                              => showDelegateUsageError(); inputs
   }
 }
 
