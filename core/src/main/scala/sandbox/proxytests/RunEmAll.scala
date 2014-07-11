@@ -22,5 +22,12 @@ object RunEmAll extends App {
   wrap4.dg = DoublingBippy
   println(wrap4.bippy(42))
 
-  (new HasNakedMember).dg
+  println(SingletonBippyWithProxyVar.bippy(42))
+  SingletonBippyWithProxyVar.dg = DoublingBippy
+  println(SingletonBippyWithProxyVar.bippy(42))
+
+//  SmarterProps.x = 42
+//  SmarterProps.y = "forty-two "
+//  println(s"${SmarterProps.x} ${SmarterProps.y}")
+
 }

@@ -35,6 +35,16 @@ class BippyVarWrapper {
   @proxy var dg: Bippy = SimpleBippy
 }
 
-class HasNakedMember {
-  @proxy val dg: Bippy = SimpleBippy
+@delegating
+object SingletonBippyWithProxyVar {
+  @proxy var dg: Bippy = SimpleBippy
+}
+
+@delegating
+object SmarterProps {
+  @proxy private[this] object props {
+    var x: Int = 0
+    var y: String = ""
+  }
+  def y_=(txt: String): Unit = { props.y = txt + " banana"}
 }
