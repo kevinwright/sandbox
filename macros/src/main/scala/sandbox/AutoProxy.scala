@@ -87,18 +87,27 @@ trait DelegatingMacro extends MacroBase with ClassCalculus {
 
   def hasProxyAnnotation(sym: Symbol): Boolean = {
 //    println("annotations: " + sym.annotations.mkString(","))
-    sym.annotations.exists(_.toString == "sandbox.proxytag")
+    sym.annotations.exists(_.tree.toString == "new sandbox.proxytag()")
   }
 
   def proxyPivots(tpe: TypeSymbol): List[Symbol] = {
     val tpeInfo = tpe.info
-    val ctorParams = tpeInfo.decls collect {
+    val ctorParams = tpeInfo.decls.collect{
       case ms: MethodSymbol if ms.name.toString == "<init>" => ms
-    } flatMap(_.paramLists.flatten)
+    }.flatMap(_.paramLists.flatten)
 
-    val candidates = ctorParams ++ tpeInfo.members
+    val candidates = ctorParams ++ tpeInfo.decls
+//    val candidateTrees = candidates.map(_.tree)
+    vprintln(s"candidate pivots for ${tpe.name} = $candidates")
 
-    candidates.collect{case s: Symbol if hasProxyAnnotation(s) => s}(breakOut)
+    val pivots: List[Symbol] = candidates.flatMap{
+      case s: Symbol if hasProxyAnnotation(s) => vprintln("identified pivot: " + showRaw(s)); List(s)
+      case s: Symbol => vprintln("ignoring symbol " + showRaw(s) + " with " + s.annotations.map(_.tree)); Nil
+      case x => vprintln("ignoring non-symbol " + x); Nil
+    }(breakOut)
+
+    vprintln(s"pivots for ${tpe.name} = $pivots")
+    pivots
   }
 
   /**
@@ -109,6 +118,7 @@ trait DelegatingMacro extends MacroBase with ClassCalculus {
     for {
       (pivot, methods) <- origins.toSeq
       method <- methods
+      if !method.isConstructor
     } yield {
       val name = method.name.toTermName
       val paramss = method.paramLists
@@ -128,12 +138,11 @@ trait DelegatingMacro extends MacroBase with ClassCalculus {
       })
 
       val delegate = q"""def $name(...${vparamss}): $ret = $delegateInvocation"""
-      vprintln("delegate: " + delegate)
       delegate
     }
   }
 
-  object ProxyHidingTransformer extends Transformer {
+  object ProxyTaggingTransformer extends Transformer {
     override def transformModifiers(mods: Modifiers): Modifiers = {
       val Modifiers(flags, privateWithin, annotations) = mods
       val updatedannotations = annotations map { ann => ann match {
@@ -146,7 +155,7 @@ trait DelegatingMacro extends MacroBase with ClassCalculus {
   }
 
   def tagProxyAnnotations[T <: Tree](tree: T): T = {
-    ProxyHidingTransformer.transform(tree).asInstanceOf[T]
+    ProxyTaggingTransformer.transform(tree).asInstanceOf[T]
   }
 
   def processClass(clazz0: ClassDef): Tree = {
@@ -174,7 +183,7 @@ trait DelegatingMacro extends MacroBase with ClassCalculus {
     val pivots = proxyPivots(modClassSym)
 
     val workSummary = summariseWork(modInfo, pivots)
-    import workSummary.pivotProvidedMethods
+    import workSummary.{pivotProvidedMethods,existingConcreteMethods}
 
     pivotProvidedMethods foreach { case (pivot,methods) =>
       vprintln(s"Provided Methods for ${pivot.name} = ${methods.mkString}")

@@ -26,8 +26,8 @@ object RunEmAll extends App {
   SingletonBippyWithProxyVar.dg = DoublingBippy
   println(SingletonBippyWithProxyVar.bippy(42))
 
-//  SmarterProps.x = 42
-//  SmarterProps.y = "forty-two "
-//  println(s"${SmarterProps.x} ${SmarterProps.y}")
+  SmarterProps.x = 42
+  SmarterProps.y = "forty-two "
+  println(s"${SmarterProps.x} ${SmarterProps.y}")
 
 }

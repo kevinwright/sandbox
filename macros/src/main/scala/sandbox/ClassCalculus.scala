@@ -26,9 +26,10 @@ trait ClassCalculus extends MacroBase {
     val existingInterfaces = clazzInfo.baseClasses.toSet
 
     val (existingAbstractMethods, existingConcreteMethods) = existingMethods.partition(_.isAbstract)
+    val existingConcreteMethodSigs = existingConcreteMethods map {_.typeSignature}
 
     val pivotProvidedMethods: Map[Symbol, Set[MethodSymbol]] = pivots.map{ p =>
-      p -> (methodsOn(p) -- existingConcreteMethods)
+      p -> (methodsOn(p) filter {m => !existingConcreteMethodSigs.exists(_ =:= m.typeSignature)})
     }(breakOut)
 
     val pivotProvidedInterfaces: Map[Symbol, Set[Symbol]] = pivots.map{ p =>
