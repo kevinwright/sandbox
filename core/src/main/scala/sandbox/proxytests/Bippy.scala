@@ -2,6 +2,10 @@ package sandbox.proxytests
 
 import sandbox.{dgt, delegating, proxy}
 
+object inner {
+  trait SomeTrait
+}
+
 trait Bippy {
   def bippy(i : Int) : String
 }
@@ -14,7 +18,7 @@ object DoublingBippy extends Bippy {
   def bippy(i: Int) = (i*2).toString
 }
 
-@delegating class BippyValParamWrapper(@proxy val dg : Bippy) {
+@delegating class BippyValParamWrapper(@proxy val dg : Bippy) extends sandbox.proxytests.inner.SomeTrait {
   def one(s: String) = s
   def two(i: Int) = i
   def three[T](x: T) = x

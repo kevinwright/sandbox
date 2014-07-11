@@ -38,7 +38,7 @@ object DelegatingMacro {
 
     val code = theMacro.process(inputs)
 
-    vprintln(s"delegating macro transform expands to:\n ${code}")
+    println(s"delegating macro transform expands to:\n ${code}")
 
     // Mark range positions for synthetic code as transparent to allow some wiggle room for overlapping ranges
     //for (t <- code) t.setPos(t.pos.makeTransparent)
@@ -77,16 +77,19 @@ trait DelegatingMacro extends MacroBase with ClassCalculus {
   def typeSymOf(impl: ImplDef): TypeSymbol =
     treeOf(impl).symbol.asType
 
-  def injectMembers(templ: Template, newMembers: Seq[Tree]): Template =
-    Template(templ.parents, templ.self, templ.body ++ newMembers)
+  def injectMembers(templ: Template, newMembers: Seq[Tree], newInterfaces: List[Tree]): Template = {
+    println(s"templateParents = ${templ.parents.map(showRaw(_))}}")
+    println(s"injecting interfaces = ${newInterfaces.map(showRaw(_))}}")
+    Template(templ.parents ++ newInterfaces, templ.self, templ.body ++ newMembers)
+  }
 
 
-  def injectMembers[T <: ImplDef](impl: T, newMembers: Seq[Tree]): T = impl match {
+  def injectMembers[T <: ImplDef](impl: T, newMembers: Seq[Tree], newInterfaces: List[Tree]): T = impl match {
     case ClassDef(mods, name, tparams, templ) =>
-      ClassDef(mods, name, tparams, injectMembers(templ, newMembers)).asInstanceOf[T]
+      ClassDef(mods, name, tparams, injectMembers(templ, newMembers, newInterfaces)).asInstanceOf[T]
 
     case ModuleDef(mods, name, templ) =>
-      ModuleDef(mods, name, injectMembers(templ, newMembers)).asInstanceOf[T]
+      ModuleDef(mods, name, injectMembers(templ, newMembers, newInterfaces)).asInstanceOf[T]
   }
 
   def hasProxyAnnotation(sym: Symbol): Boolean = {
@@ -165,17 +168,20 @@ trait DelegatingMacro extends MacroBase with ClassCalculus {
   def processClass(clazz0: ClassDef): Tree = {
     val clazz = tagProxyAnnotations(clazz0)
     val clazzSym = symOf(treeOf(clazz))
-    val clazzInfo = clazzSym.info
     val pivots = proxyPivots(clazzSym)
 
-    val workSummary = summariseWork(clazzInfo, pivots)
-    import workSummary.pivotProvidedMethods
+    val workSummary = summariseWork(clazzSym, pivots)
+    import workSummary.{pivotProvidedMethods, pivotProvidedInterfaceTrees}
 
     pivotProvidedMethods foreach { case (pivot,methods) =>
       vprintln(s"Provided Methods for ${pivot.name} = ${methods.mkString}")
     }
 
-    val newClassDef = injectMembers(clazz.duplicate.asInstanceOf[ClassDef], mkDelegates(pivotProvidedMethods))
+//    pivotProvidedInterfaces foreach { case (pivot,interfaces) =>
+//      vprintln(s"Provided interfaces for ${pivot.name} = ${interfaces.mkString}")
+//    }
+
+    val newClassDef = injectMembers(clazz.duplicate.asInstanceOf[ClassDef], mkDelegates(pivotProvidedMethods), pivotProvidedInterfaceTrees)
     newClassDef
   }
 
@@ -183,17 +189,20 @@ trait DelegatingMacro extends MacroBase with ClassCalculus {
     val mod = tagProxyAnnotations(mod0)
     val modSym = symOf(treeOf(mod))
     val modClassSym = modSym.moduleClass.asClass
-    val modInfo = modClassSym.info
     val pivots = proxyPivots(modClassSym)
 
-    val workSummary = summariseWork(modInfo, pivots)
-    import workSummary.pivotProvidedMethods
+    val workSummary = summariseWork(modClassSym, pivots)
+    import workSummary.{pivotProvidedMethods, pivotProvidedInterfaceTrees}
 
     pivotProvidedMethods foreach { case (pivot,methods) =>
       vprintln(s"Provided Methods for ${pivot.name} = ${methods.mkString}")
     }
 
-    val newClassDef = injectMembers(mod.duplicate.asInstanceOf[ModuleDef], mkDelegates(pivotProvidedMethods))
+//    pivotProvidedInterfaces foreach { case (pivot,interfaces) =>
+//      vprintln(s"Provided interfaces for ${pivot.name} = ${interfaces.mkString}")
+//    }
+
+    val newClassDef = injectMembers(mod.duplicate.asInstanceOf[ModuleDef], mkDelegates(pivotProvidedMethods), pivotProvidedInterfaceTrees)
     newClassDef
   }
 

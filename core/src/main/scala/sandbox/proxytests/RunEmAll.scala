@@ -7,6 +7,8 @@ object RunEmAll extends App {
 
   val wrap1 = new BippyValParamWrapper(SimpleBippy)
   println(wrap1.bippy(42))
+
+  assert(wrap1.isInstanceOf[inner.SomeTrait])
   
   val wrap2 = new BippyVarParamWrapper(SimpleBippy)
   println(wrap2.bippy(42))
